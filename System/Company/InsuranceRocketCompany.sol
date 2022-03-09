@@ -35,14 +35,28 @@ contract InsuranceRocketCompany is InterfaceRocket{
     event changeStatusServiceEvent(string);
     //Evento para notificar un servicio creado
     event createServiceEvent(string);
+    //Evento para notificar cuando se habilita un cliente o laboratorio
+    event enableSubscriptionEvent(string);
+    //Evento para notificar cuando se crea un contrato apra cliente
+    event createFactoryEvent(string, address);
 
     //---------------------------------------Mappings---------------------------------------
     //Mapping para relacionar el nombre de un servicio con su estructura de datos
     mapping(string => Service) public Services;
 
+    //Mapping que relaciona la address con la peticion
+    mapping(address => Request) public RequestStatus;
+
+    //---------------------------------------Enums---------------------------------------
+    //Enum para clasificar el tipo de peticion de suscripcion
+    enum RequestType { CLIENT, LABORATORY }
+
     //---------------------------------------Arrays---------------------------------------
     //Array para almacenar el listado de los servicios
     string[] private listServices;
+
+    //Array para almacenar las peticiones de suscripcion de clientes
+    address[] requestMixed;
 
     //---------------------------------------Funciones para contrato principal---------------------------------------
 
@@ -73,55 +87,135 @@ contract InsuranceRocketCompany is InterfaceRocket{
         return Services[_name];
     }
 
-    //Funcion para agregar servicios
+    //Funcion para crear servicios
     function createService(string memory _name, uint _price) public override onlyOwner{
         Services[_name] = Service(_price, true);
         listServices.push(_name);
         emit createServiceEvent("Se ha creado un nuevo servicio.");
     }
 
-    //Funcion para desactivar servicios
+    //Funcion para cambiar el estado de los servicios
     function changeStatusService(string memory _name) public override onlyOwner{
         Services[_name].statusService = !Services[_name].statusService;
 
         emit changeStatusServiceEvent("Se ha cambiado el estado del servicio correctamente.");
     }
 
-    //Funcion para convertir el precio de tokens a ethers
-    function tokenToEthers(uint _quantity) private view override returns(uint){
-        return _quantity * (1 ether);
+    //Funcion para recibir pagos
+    receive() external payable{}
+    
+    //Funcion para solicitar una suscripcion para un cliente
+    function requestSubscriptionClient() public override {
+        RequestStatus[msg.sender] = Request(uint(RequestType.CLIENT), false, address(0));
+        requestMixed.push(msg.sender);
     }
 
-    //Funcion para pagar 
-    
-    //Funcion para solicitar una suscripcion
-    //Funcion para habilitar un usuario
-    //Funcion para solicitar si el usuario está habilitado para crear su contrato con la compania
+    //Funcion para solicitar una suscripcion para un laboratorio
+    function requestSubscriptionLaboratory() public override {
+        RequestStatus[msg.sender] = Request(uint(RequestType.LABORATORY), false, address(0));
+        requestMixed.push(msg.sender);
+    }
 
+    //Funcion para habilitar un cliente o laboratorio
+    function enableSubscription(address _addr) public onlyOwner override {
+        RequestStatus[_addr].statusRequest = true;
 
+        emit enableSubscriptionEvent("Se ha habilitado un cliente o suscripcion");
+    }
+
+    //Funcion para revisar su numero de contrato
+    function checkNumberContract() public view returns(address){
+        return RequestStatus[msg.sender].addressContract;
+    }
+
+    //Funcion para ver las solicitudes pendientes
+    function showPendingRequest(string memory _type) public view override returns(address[] memory) {
+        require(keccak256(abi.encodePacked(_type)) == keccak256(abi.encodePacked("Client")) || keccak256(abi.encodePacked(_type)) == keccak256(abi.encodePacked("Laboratory")), "El tipo ingresado no es correcto");
+        
+        uint counter;
+        address[] memory pendingRequests = new address[] (requestMixed.length);
+
+        if(keccak256(abi.encodePacked(_type)) == keccak256(abi.encodePacked("CLIENT"))){
+            for(uint i = 0; i < requestMixed.length; i++){
+                if(RequestStatus[requestMixed[i]].statusRequest == false){
+                    pendingRequests[counter] = requestMixed[i];
+                    counter++;
+                }
+            }
+        }else{
+            for(uint i = 0; i < requestMixed.length; i++){
+                if(RequestStatus[requestMixed[i]].statusRequest == false){
+                    pendingRequests[counter] = requestMixed[i];
+                    counter++;
+                }
+            }
+        }
+        
+        return pendingRequests;
+    }
 
     //---------------------------------------Contrato clientes---------------------------------------
-    //funcion para crear contrato para asegurados
-    //funcion para devolver ether cuando un usuario se da de baja
+    function createClientFactory() public {
+        require(RequestStatus[msg.sender].statusRequest == true && RequestStatus[msg.sender].requestType == 0, "No tienes habilitado para crear tu contrato o tipo de contrato no coincide.");
 
+        address clientAddressContract = address(new Client(msg.sender));
+        RequestStatus[msg.sender].addressContract = clientAddressContract;
+
+        emit createFactoryEvent("Contrato creado", clientAddressContract);
+    }
 
     //---------------------------------------Contratos laboratorios---------------------------------------
-    //funcion para crear contrato de laboratorios
-    
+    function createLaboratoryFactory() public {
+        require(RequestStatus[msg.sender].statusRequest == true && RequestStatus[msg.sender].requestType == 1, "No tienes habilitado para crear tu contrato o tipo de contrato no coincide.");
 
+        address laboratoryAddressContract = address(new Laboratory(msg.sender));
+        RequestStatus[msg.sender].addressContract = laboratoryAddressContract;
 
+        emit createFactoryEvent("Contrato creado", laboratoryAddressContract);
+    }
 }
 
 contract Client{
+    address public owner;
+    address private addressContract;
+
+    constructor(address _addr) {
+        owner = _addr;
+        addressContract = address(this);
+    }
+
+    //Funcion para convertir el precio de tokens a ethers
+    function tokenToEthers(uint _quantity) public pure returns(uint){
+        return _quantity * (1 ether);
+    }
+
     //Funcion para comprar tokens
-    function buyTokens(uint _quantity) public payable override{
+    function buyTokens(uint _quantity) public payable {
         uint cost = tokenToEthers(_quantity);
 
         require(msg.value >= cost, "Necesitas mas ethers para comprar esta cantidad de tokens.");
 
         uint returnValue = msg.value - cost;
         payable(msg.sender).transfer(returnValue);
-
-        token.transfer(msg.sender, _quantity);
     }
+
+    //Funcion para devolver ether cuando un usuario se da de baja
+    function finishContract() public {
+
+    }
+}
+
+contract Laboratory{
+    address public owner;
+    address private addressContract;
+
+    constructor(address _addr) {
+        x
+        owner = _addr;
+        addressContract = address(this);
+    }
+
+    //Funcion para devolver ether cuando un usuario se da de baja
+
+    //Funcion para crear los servicios ofrecidos
 }
