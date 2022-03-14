@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity >=0.7.0 < 0.9.0;
 
 import "./IERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -40,7 +40,7 @@ contract ERC20Rocket is Interfaces{
         return true;
     }
 
-    function transferTokenTeleMedicine(address from, address to, uint amount) public {
+    function transferTokenRocket(address from, address to, uint amount) public {
         _balances[from] -= amount;
         _balances[to] += amount;
     }
